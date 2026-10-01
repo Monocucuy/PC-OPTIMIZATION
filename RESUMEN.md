@@ -166,7 +166,9 @@ El PR #1 dice: *"quiero pasar todo lo de la rama de Claude a `main`"*. Mientras 
 
 ## 10. Pendientes y próximos pasos
 
-- [ ] Primera ejecución en tu Windows y corrección de lo que salga.
+- [x] Primera ejecución en tu Windows (hecha: reporte del 2026-10-01).
+- [ ] **Accesos directos desde NÚCLEO a las observaciones del diagnóstico.** Cada descuento del puntaje de salud (por ejemplo "-15 21.1 GB de basura acumulada") debe llevar a la sección y pestaña que lo originó, y resaltar el dato exacto. Hoy es solo texto.
+- [ ] Corrección de lo que salga en la primera ejecución real.
 - [ ] Hacer Merge del PR #1 cuando funcione.
 - [ ] Opcional: empaquetarlo como un único `.exe` con PyInstaller, para no depender de Python.
 - [ ] Opcional: agregar CI para que las pruebas corran solas en GitHub.
