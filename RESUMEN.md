@@ -164,11 +164,21 @@ El PR #1 dice: *"quiero pasar todo lo de la rama de Claude a `main`"*. Mientras 
 
 ---
 
-## 10. Pendientes y próximos pasos
+## 10. Estado y próximos pasos
 
-- [x] Primera ejecución en tu Windows (hecha: reporte del 2026-10-01).
-- [ ] **Accesos directos desde NÚCLEO a las observaciones del diagnóstico.** Cada descuento del puntaje de salud (por ejemplo "-15 21.1 GB de basura acumulada") debe llevar a la sección y pestaña que lo originó, y resaltar el dato exacto. Hoy es solo texto.
-- [ ] Corrección de lo que salga en la primera ejecución real.
-- [ ] Hacer Merge del PR #1 cuando funcione.
+**Hecho después de la primera ejecución en Windows** (a partir del reporte y las capturas de la primera prueba real):
+
+- [x] Primera ejecución en Windows 10.
+- [x] **Análisis de arranque se caía** (`TypeError: ... not dict`): PowerShell 5.1 serializaba las rutas como objetos. Corregido en el script y en el lado Python.
+- [x] **Análisis de procesos ciego** (0 ejecutables inspeccionados aunque eras administrador): ahora registra la causa real y usa WMI como plan B.
+- [x] **"Firmas del antivirus con 65535 días"** era un valor centinela de Defender, no días. Ahora se trata como "sin dato", y si hay otro antivirus al mando la interfaz lo explica.
+- [x] **Falsos "programas sin uso":** los runtimes, drivers y SDK pasan a la categoría COMPONENTE, los programas que corren ahora se marcan en uso, y un programa cuyos únicos `.exe` son instaladores (por ejemplo `OneDriveSetup.exe`) ya no sale como "sin registro".
+- [x] **Accesos directos desde NÚCLEO:** cada observación del diagnóstico es un enlace que lleva a la sección y pestaña correctas y resalta el dato.
+- [x] **Bloque "Qué hace MatrixScan"** en la pantalla de inicio.
+
+**Pendiente:**
+
+- [ ] Confirmar en tu PC que el análisis de procesos ya ve las rutas (si no, pegar las líneas `causa:` y `WMI recuperó…` del log).
+- [ ] Decidir si se quita Edge para ahorrar RAM (la versión con Edge queda guardada en la release v1.0.0).
 - [ ] Opcional: empaquetarlo como un único `.exe` con PyInstaller, para no depender de Python.
 - [ ] Opcional: agregar CI para que las pruebas corran solas en GitHub.

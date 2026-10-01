@@ -12,6 +12,8 @@ import re
 import struct
 import time
 
+import psutil
+
 from ..jobs import Job
 from ..util import IS_WINDOWS, dir_summary
 from ..winapi import reg_subkeys, reg_values
@@ -27,8 +29,14 @@ KNOWN_FOLDERS = {
     "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}": r"%SystemRoot%\System32",
     "{D65231B0-B2F1-4857-A4CE-A8E7C6EA7D27}": r"%SystemRoot%\SysWOW64",
 }
-_NOT_USAGE = re.compile(r"^(unins\d*|uninstall\w*|uninst|setup|install\w*|update\w*|crashpad_handler|"
-                        r"crashreporter|.*helper|vc_redist.*|dxsetup)\.exe$", re.I)
+_NOT_USAGE = re.compile(r"^(unins\w*|uninst\w*|.*setup.*|.*install.*|update\w*|crashpad_handler|crashreporter.*|"
+                        r".*helper|vc_?redist.*|dxsetup)\.exe$", re.I)
+# Runtimes, drivers, SDK y servicios de fondo: no se "abren" nunca, así que no tiene sentido llamarlos "sin uso".
+_COMPONENT = re.compile(
+    r"redistributable|vcredist|visual c\+\+|\bruntime\b|\bframework\b|webview2|directx|vulkan|openal|physx|"
+    r"\b(jdk|jre)\b|java(\(tm\))? ?(\d|se\b|update)|temurin|\bzulu\b|openjdk|corretto|"
+    r"\bdrivers?\b|controlador|\bsdk\b|frameview|realtek|chipset|management engine|"
+    r"genuine service|vanguard|anti-?cheat|easyanticheat|battleye", re.I)
 _SKIP_NAME = re.compile(r"^(security update|update for|hotfix|actualización de seguridad)", re.I)
 
 
@@ -186,14 +194,39 @@ def classify(last_used: float | None, has_evidence_source: bool, now: float | No
     return "sin_registro" if has_evidence_source else "desconocido"
 
 
+def is_component(name: str) -> bool:
+    return bool(_COMPONENT.search(name))
+
+
+def running_names() -> set[str]:
+    """Nombres (en mayúsculas) de los ejecutables que corren ahora mismo."""
+    names: set[str] = set()
+    for p in psutil.process_iter(["name"]):
+        n = p.info.get("name")
+        if n:
+            names.add(n.upper())
+    return names
+
+
 def match_usage(program: dict, exe_names: list[str], prefetch: dict[str, float],
-                ua_exes: dict[str, float], ua_links: dict[str, float]) -> tuple[float | None, str]:
+                ua_exes: dict[str, float], ua_links: dict[str, float],
+                running: set[str] | frozenset = frozenset(), now: float | None = None,
+                ) -> tuple[float | None, str, bool]:
+    """Devuelve (último uso, fuente, hubo_ejecutables_evaluables).
+
+    El tercer valor distingue "no hay registro de uso" de "no se pudo evaluar nada": un programa cuyos
+    únicos .exe son instaladores o desinstaladores no demuestra nada, y no debe salir como "sin uso".
+    """
     best: float | None = None
     source = ""
+    checked = False
     for exe in exe_names:
         if _NOT_USAGE.match(exe):
             continue
+        checked = True
         up = exe.upper()
+        if up in running:
+            return now or time.time(), "En ejecución ahora", True
         for table, label in ((prefetch, "Prefetch"), (ua_exes, "UserAssist")):
             ts = table.get(up)
             if ts and (best is None or ts > best):
@@ -201,8 +234,8 @@ def match_usage(program: dict, exe_names: list[str], prefetch: dict[str, float],
     name = program["name"].lower()
     for stem, ts in ua_links.items():
         if len(stem) >= 4 and (stem == name or name.startswith(stem)) and (best is None or ts > best):
-            best, source = ts, "Menú Inicio"
-    return best, source
+            best, source, checked = ts, "Menú Inicio", True
+    return best, source, checked
 
 
 def scan(job: Job) -> dict:
@@ -218,6 +251,7 @@ def scan(job: Job) -> dict:
             f"UserAssist: {len(ua_exes) + len(ua_links)} registros")
     size_budget = time.monotonic() + 25
     now = time.time()
+    running = running_names()
     for i, prog in enumerate(programs):
         job.check()
         job.set_progress(i / max(1, len(programs)), f"Analizando: {prog['name']}")
@@ -229,11 +263,12 @@ def scan(job: Job) -> dict:
                 prog["size"] = dir_summary(loc, check=job.check, top_n=0)["size"]
         if prog["icon"].lower().endswith(".exe"):
             exes.append(os.path.basename(prog["icon"]))
-        last, source = match_usage(prog, exes, prefetch, ua_exes, ua_links)
+        last, source, checked = match_usage(prog, exes, prefetch, ua_exes, ua_links, running, now)
         prog["last_used"] = last
         prog["usage_source"] = source
         prog["days_unused"] = int((now - last) // 86400) if last else None
-        prog["status"] = classify(last, prefetch_ok and bool(exes), now)
+        prog["component"] = is_component(prog["name"])
+        prog["status"] = "componente" if prog["component"] else classify(last, prefetch_ok and checked, now)
         del prog["icon"]
 
     programs.sort(key=lambda p: p["size"], reverse=True)

@@ -81,11 +81,41 @@ def test_program_usage_matching_and_status():
     now = time.time()
     prog = {"name": "Blender 4.2"}
     prefetch = {"BLENDER.EXE": now - 3 * 86400}
-    last, src = programs.match_usage(prog, ["blender.exe", "unins000.exe"], prefetch, {}, {})
-    assert src == "Prefetch" and programs.classify(last, True, now) == "en_uso"
+    last, src, checked = programs.match_usage(prog, ["blender.exe", "unins000.exe"], prefetch, {}, {})
+    assert src == "Prefetch" and checked and programs.classify(last, True, now) == "en_uso"
     # el desinstalador no cuenta como uso
-    last, _ = programs.match_usage(prog, ["unins000.exe"], {"UNINS000.EXE": now}, {}, {})
-    assert last is None
+    last, _, checked = programs.match_usage(prog, ["unins000.exe"], {"UNINS000.EXE": now}, {}, {})
+    assert last is None and not checked
     assert programs.classify(None, True) == "sin_registro"
     assert programs.classify(None, False) == "desconocido"
     assert programs.classify(now - 400 * 86400, True, now) == "sin_uso"
+
+
+def test_only_installer_exes_is_unknown_not_unused():
+    # OneDrive/instaladores: si los únicos .exe conocidos son setup/uninstall no hay evidencia de nada
+    last, _, checked = programs.match_usage({"name": "Microsoft OneDrive"}, ["OneDriveSetup.exe"], {}, {}, {})
+    assert last is None and checked is False
+    assert programs.classify(last, True and checked) == "desconocido"
+
+
+def test_running_program_counts_as_in_use():
+    now = time.time()
+    last, src, checked = programs.match_usage({"name": "Microsoft OneDrive"}, ["OneDrive.exe"], {}, {}, {},
+                                              running={"ONEDRIVE.EXE"}, now=now)
+    assert last == now and src == "En ejecución ahora" and checked
+    assert programs.classify(last, True, now) == "en_uso"
+
+
+def test_components_are_not_reported_as_unused():
+    # nombres reales del reporte de un equipo con Windows 10
+    components = [
+        "Eclipse Temurin JDK con Hotspot 21.0.11+10 (x64)", "Azul Zulu JDK 17.62.17 (17.0.17), 64-bit",
+        "Java 8 Update 451 (64-bit)", "Realtek High Definition Audio Driver", "NVIDIA FrameView SDK 1.5.11504.36206172",
+        "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247", "Microsoft Visual C++ 2012 Redistributable (x86) - 11.0.61030",
+        "Riot Vanguard", "Adobe Genuine Service", "Rockstar Games SDK", "Microsoft Edge WebView2 Runtime",
+        "Microsoft .NET Runtime - 8.0.5 (x64)",
+    ]
+    real_apps = ["Walking Zombie 2", "Heaven Benchmark version 4.0", "TeamViewer", "FFmpeg", "Blender 4.2",
+                 "Autodesk 3ds Max 2022", "American Truck Simulator", "Rockstar Games Launcher", "Riot Client", "uv"]
+    assert all(programs.is_component(n) for n in components), [n for n in components if not programs.is_component(n)]
+    assert not any(programs.is_component(n) for n in real_apps), [n for n in real_apps if programs.is_component(n)]

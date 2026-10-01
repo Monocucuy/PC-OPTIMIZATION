@@ -46,7 +46,18 @@ ConvertTo-Json -InputObject ([pscustomobject]$o) -Compress -Depth 5
 """
 
 SEVERITY = {0: "Desconocida", 1: "Baja", 2: "Moderada", 4: "Alta", 5: "Grave"}
-NEVER = 4294967295  # Defender usa UInt32.MaxValue cuando nunca se ha ejecutado un escaneo
+# Defender devuelve un centinela (UInt16 65535 o UInt32 4294967295) en vez de un número real cuando no
+# tiene el dato: nunca ha escaneado, está apagado o hay otro antivirus al mando. No son "días".
+UNKNOWN_AGE = 65535
+
+
+def clean_ages(data: dict) -> dict:
+    """Convierte los centinelas de edad (escaneos y firmas) en None = sin dato."""
+    for key in ("quick_scan_age_days", "full_scan_age_days", "sig_age_days"):
+        value = data.get(key)
+        if not isinstance(value, (int, float)) or value < 0 or value >= UNKNOWN_AGE:
+            data[key] = None
+    return data
 
 
 def decode_product_state(state: int) -> dict:
@@ -67,9 +78,7 @@ def status(job: Job | None = None) -> dict:
     data = powershell_json(_STATUS_SCRIPT, timeout=60)
     if not isinstance(data, dict):
         raise JobError("No se pudo consultar Windows Defender (PowerShell no respondió).")
-    for key in ("quick_scan_age_days", "full_scan_age_days", "sig_age_days"):
-        if data.get(key) in (NEVER, -1):
-            data[key] = None
+    clean_ages(data)
     products = []
     for p in as_list(data.get("products")):
         if isinstance(p, dict) and p.get("name"):

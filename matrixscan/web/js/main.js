@@ -15,6 +15,25 @@
   }
   MS.show = show;
 
+  /** Va a una sección y, opcionalmente, abre una pestaña y desplaza/resalta un elemento. */
+  function goto({ goto: view, tab, target }) {
+    show(view);
+    if (tab) {
+      const btn = $(`#view-${view} .tabs button[data-tab="${tab}"]`);
+      if (btn) btn.click();
+    }
+    if (!target) return;
+    requestAnimationFrame(() => {
+      const el = $(target);
+      if (!el) return;
+      el.scrollIntoView({ behavior: MS.reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      el.classList.remove('flash');
+      void el.offsetWidth;                       // reinicia la animación si ya estaba puesta
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 1800);
+    });
+  }
+
   // ------------------------------------------------------------ secuencia de inicio
   async function boot(sys) {
     const el = $('#boot');
@@ -94,7 +113,7 @@
     $$('#nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
     document.addEventListener('click', ev => {
       const a = ev.target.closest('[data-goto]');
-      if (a) { ev.preventDefault(); show(a.dataset.goto); }
+      if (a) { ev.preventDefault(); goto(a.dataset); }
     });
     tick(); setInterval(tick, 1000);
 

@@ -369,7 +369,7 @@ p { margin: 0 0 10px; }
   letter-spacing: .1em; white-space: nowrap; text-transform: uppercase;
 }
 .badge.ok, .badge.seguro, .badge.en_uso, .badge.limpio { color: var(--g); }
-.badge.bajo, .badge.poco_uso, .badge.desconocido, .badge.dim { color: var(--muted); }
+.badge.bajo, .badge.poco_uso, .badge.desconocido, .badge.componente, .badge.dim { color: var(--muted); }
 .badge.medio, .badge.revisar, .badge.sin_uso, .badge.sospechoso { color: var(--amber); }
 .badge.alto, .badge.malicioso { color: var(--red); background: rgba(255, 61, 94, .1); animation: alarm 1.2s ease-in-out infinite; }
 .badge.sin_registro { color: var(--amber); border-style: dashed; }
@@ -475,6 +475,17 @@ textarea { resize: vertical; }
 .steps li::marker { color: var(--g); font-weight: 700; }
 .facts li::marker { color: var(--g-dim); }
 #about-status:not(:empty) { margin-top: 10px; }
+
+/* observaciones del diagnóstico: enlaces al detalle */
+.obs-link { color: inherit; text-decoration: none; border-bottom: 1px dashed var(--g-dim); transition: color .15s, border-color .15s; }
+.obs-link:hover { color: var(--g); border-color: var(--g); text-shadow: var(--glow-sm); }
+.obs-link .arrow { color: var(--g); opacity: .55; transition: opacity .15s, margin-left .15s; margin-left: 2px; }
+.obs-link:hover .arrow { opacity: 1; margin-left: 5px; }
+.flash { animation: flash 1.7s ease-out; }
+@keyframes flash {
+  0% { box-shadow: 0 0 0 2px var(--g), 0 0 28px rgba(0, 255, 65, .75); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 0 transparent; }
+}
 
 /* barra de estado */
 .statusbar {

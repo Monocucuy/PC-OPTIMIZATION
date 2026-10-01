@@ -77,6 +77,10 @@
         ${ageLight('ESCANEO COMPLETO', r.full_scan_age_days, 60, 180, 'nunca')}
       </div>`;
       if (r.mode && !/normal/i.test(r.mode)) html += `<div class="note">Defender está en modo "${esc(r.mode)}": otro antivirus tiene el control.</div>`;
+      const activeOthers = others.filter(p => p.enabled);
+      if (!r.realtime && activeOthers.length) {
+        html += `<div class="note info">Defender está apagado porque otro antivirus tiene el control (${activeOthers.map(p => esc(p.name)).join(', ')}). Es normal: las firmas y los escaneos de arriba son de Defender, no de ese antivirus.</div>`;
+      }
     } else {
       html += '<div class="note">No se pudo leer el estado de Defender. Puede estar desactivado porque hay otro antivirus instalado.</div>';
     }

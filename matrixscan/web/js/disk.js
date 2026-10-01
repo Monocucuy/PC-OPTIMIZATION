@@ -99,7 +99,7 @@
   }
 
   // ------------------------------------------------------------ programas
-  const STATUS = { en_uso: 'EN USO', poco_uso: 'POCO USO', sin_uso: 'SIN USO', sin_registro: 'SIN REGISTRO', desconocido: 'DESCONOCIDO' };
+  const STATUS = { componente: 'COMPONENTE', en_uso: 'EN USO', poco_uso: 'POCO USO', sin_uso: 'SIN USO', sin_registro: 'SIN REGISTRO', desconocido: 'DESCONOCIDO' };
   let progFilter = 'all', progQuery = '';
 
   function renderPrograms(r) {
@@ -114,7 +114,7 @@
         <div><div class="big">${r.programs.length}</div><div class="lbl">INSTALADOS · ${fmtBytes(r.total_size)}</div></div>
       </div>
       ${r.prefetch_available ? '' : '<div class="note">Sin acceso a Prefetch: el último uso solo se conoce para programas abiertos desde el menú Inicio o el Explorador. Ejecuta como administrador para mayor precisión.</div>'}
-      <div class="note info">Para desinstalar: Configuración → Aplicaciones → Aplicaciones instaladas. "Sin registro" = Windows no tiene constancia de que lo hayas abierto recientemente.</div>
+      <div class="note info">Para desinstalar: Configuración → Aplicaciones → Aplicaciones instaladas. "Sin registro" = Windows no tiene constancia de que lo hayas abierto recientemente. <b>Componente</b> = runtime, driver o SDK: no se abren, así que no cuentan como "sin uso".</div>
       <div class="filters">
         <button class="chip ${progFilter === 'all' ? 'on' : ''}" data-pf="all">TODOS ${r.programs.length}</button>
         ${Object.keys(STATUS).filter(s => counts[s]).map(s => `<button class="chip ${progFilter === s ? 'on' : ''}" data-pf="${s}">${STATUS[s]} ${counts[s]}</button>`).join('')}
@@ -137,7 +137,7 @@
       { key: 'bar', label: '', sortable: false, cls: 'bar-cell', render: p => MS.meter(p.size / max * 100) },
       { key: 'installed', label: 'INSTALADO', render: p => esc(p.installed || '--') },
       { key: 'last_used', label: 'ÚLTIMO USO', render: p => (p.last_used ? `${MS.fmtAgo(p.last_used)}<div class="path">${esc(p.usage_source)}</div>` : '<span class="muted">--</span>') },
-      { key: 'status', label: 'ESTADO', render: p => MS.badge(STATUS[p.status], p.status), sort: p => ['en_uso', 'poco_uso', 'desconocido', 'sin_registro', 'sin_uso'].indexOf(p.status) },
+      { key: 'status', label: 'ESTADO', render: p => MS.badge(STATUS[p.status], p.status), sort: p => ['componente', 'en_uso', 'poco_uso', 'desconocido', 'sin_registro', 'sin_uso'].indexOf(p.status) },
       { key: 'open', label: '', sortable: false, render: p => MS.openBtn(p.location) },
     ], { sortKey: 'size' });
   }

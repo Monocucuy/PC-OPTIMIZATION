@@ -14,59 +14,83 @@
     const parts = [];
     let score = 100;
     let evidence = 0;
-    const ded = (pts, text) => { if (pts) { score -= pts; parts.push({ pts: -pts, text }); } };
+    // destino de cada observación: sección, pestaña y elemento que se resalta
+    const GO = {
+      drives: { goto: 'dashboard', target: '#dash-disks' },
+      junk: { goto: 'disk', tab: 'junk', target: '#junk-results' },
+      large: { goto: 'disk', tab: 'large', target: '#large-results' },
+      dups: { goto: 'disk', tab: 'duplicates', target: '#duplicates-results' },
+      progs: { goto: 'disk', tab: 'programs', target: '#programs-results' },
+      procs: { goto: 'security', target: '#processes-results' },
+      startup: { goto: 'security', target: '#persistence-results' },
+      defender: { goto: 'security', target: '#defender-results' },
+      cpu: { goto: 'perf', target: '#pf-procs' },
+      ram: { goto: 'perf', target: '#pf-ram' },
+      bench: { goto: 'perf', target: '#bench-results' },
+    };
+    const ded = (pts, text, go) => { if (pts) { score -= pts; parts.push({ pts: -pts, text, go }); } };
 
     if (sys && sys.disks && sys.disks.length) {
       const d = sys.disks.find(x => /^c:/i.test(x.mount)) || sys.disks[0];
-      if (d.percent >= 95) ded(20, `Disco ${d.mount} casi lleno (${d.percent.toFixed(0)}%)`);
-      else if (d.percent >= 85) ded(10, `Disco ${d.mount} al ${d.percent.toFixed(0)}%`);
+      if (d.percent >= 95) ded(20, `Disco ${d.mount} casi lleno (${d.percent.toFixed(0)}%)`, GO.drives);
+      else if (d.percent >= 85) ded(10, `Disco ${d.mount} al ${d.percent.toFixed(0)}%`, GO.drives);
     }
     if (r.junk) {
       evidence++;
       const gb = r.junk.total / 1024 ** 3;
-      if (gb >= 1) ded(Math.min(15, Math.round(gb * 1.5)), `${gb.toFixed(1)} GB de basura acumulada`);
+      if (gb >= 1) ded(Math.min(15, Math.round(gb * 1.5)), `${gb.toFixed(1)} GB de basura acumulada`, GO.junk);
     }
-    if (r.large && r.large.total > 5 * 1024 ** 3) { evidence++; ded(5, `${fmtBytes(r.large.total)} en archivos grandes sin usar`); }
-    if (r.duplicates && r.duplicates.wasted > 2 * 1024 ** 3) ded(5, `${fmtBytes(r.duplicates.wasted)} en duplicados`);
-    if (r.programs && r.programs.supported && r.programs.unused_count >= 5) ded(5, `${r.programs.unused_count} programas sin uso`);
+    if (r.large && r.large.total > 5 * 1024 ** 3) { evidence++; ded(5, `${fmtBytes(r.large.total)} en archivos grandes sin usar`, GO.large); }
+    if (r.duplicates && r.duplicates.wasted > 2 * 1024 ** 3) ded(5, `${fmtBytes(r.duplicates.wasted)} en duplicados`, GO.dups);
+    if (r.programs && r.programs.supported && r.programs.unused_count >= 5) ded(5, `${r.programs.unused_count} programas sin uso`, GO.progs);
 
     let high = 0, med = 0;
     for (const k of ['processes', 'persistence']) {
       if (r[k] && r[k].counts) { evidence++; high += r[k].counts.alto; med += r[k].counts.medio; }
     }
-    if (high) ded(Math.min(40, high * 20), `${high} elemento(s) de riesgo ALTO`);
-    if (med) ded(Math.min(20, med * 6), `${med} elemento(s) de riesgo medio`);
+    // lleva a la tabla donde hay más riesgo: procesos o arranque
+    const heat = k => (r[k] && r[k].counts ? r[k].counts.alto * 2 + r[k].counts.medio : 0);
+    const riskGo = heat('processes') >= heat('persistence') ? GO.procs : GO.startup;
+    if (high) ded(Math.min(40, high * 20), `${high} elemento(s) de riesgo ALTO`, riskGo);
+    if (med) ded(Math.min(20, med * 6), `${med} elemento(s) de riesgo medio`, riskGo);
     const vtBad = Object.values(MS.state.vt).filter(v => v && v.verdict === 'malicioso').length;
-    if (vtBad) ded(40, `${vtBad} archivo(s) marcados como maliciosos en VirusTotal`);
+    if (vtBad) ded(40, `${vtBad} archivo(s) marcados como maliciosos en VirusTotal`, GO.procs);
 
     const df = r.defender_scan || r.defender_status;
     if (df && df.supported) {
       evidence++;
       const otherAv = (df.products || []).some(p => p.enabled && !/defender/i.test(p.name));
-      if (!df.realtime && !otherAv) ded(25, 'Protección en tiempo real desactivada');
-      if (df.sig_age_days != null && df.sig_age_days > 7) ded(10, `Firmas del antivirus con ${df.sig_age_days} días`);
+      if (!df.realtime && !otherAv) ded(25, 'Protección en tiempo real desactivada', GO.defender);
+      if (df.sig_age_days != null && df.sig_age_days > 7) ded(10, `Firmas del antivirus con ${df.sig_age_days} días`, GO.defender);
       const active = (df.threats || []).filter(t => t.active).length;
-      if (active) ded(30, `${active} amenaza(s) activa(s) según Defender`);
+      if (active) ded(30, `${active} amenaza(s) activa(s) según Defender`, GO.defender);
     }
     if (live) {
-      if (live.background.cpu > 25) ded(10, `Procesos en 2º plano usan ${live.background.cpu.toFixed(0)}% de CPU`);
-      else if (live.background.cpu > 10) ded(5, `Procesos en 2º plano usan ${live.background.cpu.toFixed(0)}% de CPU`);
+      if (live.background.cpu > 25) ded(10, `Procesos en 2º plano usan ${live.background.cpu.toFixed(0)}% de CPU`, GO.cpu);
+      else if (live.background.cpu > 10) ded(5, `Procesos en 2º plano usan ${live.background.cpu.toFixed(0)}% de CPU`, GO.cpu);
       const ram = live.history.length ? live.history[live.history.length - 1].ram : 0;
-      if (ram > 90) ded(10, `RAM al ${ram.toFixed(0)}%`);
-      else if (ram > 80) ded(5, `RAM al ${ram.toFixed(0)}%`);
+      if (ram > 90) ded(10, `RAM al ${ram.toFixed(0)}%`, GO.ram);
+      else if (ram > 80) ded(5, `RAM al ${ram.toFixed(0)}%`, GO.ram);
     }
-    if (r.persistence && r.persistence.startup_programs > 12) ded(5, `${r.persistence.startup_programs} programas arrancan con Windows`);
+    if (r.persistence && r.persistence.startup_programs > 12) ded(5, `${r.persistence.startup_programs} programas arrancan con Windows`, GO.startup);
     const bench = r.benchmark;
     if (bench && bench.loss_pct != null) {
       evidence++;
-      if (bench.loss_pct > 15) ded(10, `Pierdes ~${bench.loss_pct}% de rendimiento por procesos en 2º plano`);
-      else if (bench.loss_pct > 5) ded(5, `Pierdes ~${bench.loss_pct}% de rendimiento por procesos en 2º plano`);
+      if (bench.loss_pct > 15) ded(10, `Pierdes ~${bench.loss_pct}% de rendimiento por procesos en 2º plano`, GO.bench);
+      else if (bench.loss_pct > 5) ded(5, `Pierdes ~${bench.loss_pct}% de rendimiento por procesos en 2º plano`, GO.bench);
     }
     if (!evidence) return null;
     score = Math.max(0, Math.min(100, Math.round(score)));
     const label = score >= 85 ? 'ÓPTIMO' : score >= 65 ? 'ESTABLE' : score >= 40 ? 'COMPROMETIDO' : 'CRÍTICO';
     return { score, label, parts };
   };
+
+  /** Observación del diagnóstico: enlace al detalle si tiene destino. */
+  function obsLink(p) {
+    const g = p.go;
+    if (!g) return esc(p.text);
+    return `<a class="obs-link" href="#" data-goto="${g.goto}"${g.tab ? ` data-tab="${g.tab}"` : ''}${g.target ? ` data-target="${g.target}"` : ''}>${esc(p.text)} <span class="arrow">→</span></a>`;
+  }
 
   let lastScore = null;
   function renderHealth() {
@@ -83,7 +107,7 @@
     if (h.score !== lastScore) { MS.countUp(val, h.score); lastScore = h.score; }
     $('#health-label').textContent = h.label;
     list.innerHTML = h.parts.length
-      ? h.parts.map(p => `<li><b>${p.pts}</b> ${esc(p.text)}</li>`).join('')
+      ? h.parts.map(p => `<li><b>${p.pts}</b> ${obsLink(p)}</li>`).join('')
       : '<li class="good"><b>OK</b> Sin problemas con los datos actuales</li>';
   }
 

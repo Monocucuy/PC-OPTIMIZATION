@@ -159,3 +159,13 @@ def test_diagnose_missing_reports_real_cause():
 
     text = diagnose_missing([Denied(), Denied(), Fine()])
     assert "PermissionError×2" in text and "ok al reintentar×1" in text and "acceso denegado" in text
+
+
+def test_defender_age_sentinels_become_unknown():
+    from matrixscan.security.defender import clean_ages
+    # equipo real: Defender apagado (otro antivirus al mando) devolvía 65535 días
+    data = clean_ages({"sig_age_days": 65535, "quick_scan_age_days": 4294967295, "full_scan_age_days": -1})
+    assert data == {"sig_age_days": None, "quick_scan_age_days": None, "full_scan_age_days": None}
+    ok = clean_ages({"sig_age_days": 0, "quick_scan_age_days": 3, "full_scan_age_days": 45})
+    assert ok == {"sig_age_days": 0, "quick_scan_age_days": 3, "full_scan_age_days": 45}
+    assert clean_ages({"sig_age_days": None})["sig_age_days"] is None
