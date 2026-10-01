@@ -69,6 +69,84 @@
         </div>
       </div>
 
+      <details class="panel about" id="about" open>
+        <summary><h2>// QUÉ HACE MATRIXSCAN</h2><span class="about-toggle" aria-hidden="true"></span></summary>
+        <p class="about-lead">MatrixScan revisa tu PC en tres frentes y te cuenta qué encontró, <b>sin tocar nada</b>: dónde se va tu espacio, si hay algo sospechoso corriendo o arrancando solo, y cuánto rendimiento te quitan los procesos en segundo plano.</p>
+
+        <div class="mods">
+          <article class="mod" style="--i:0">
+            <div class="mod-k">01 · DISCO</div>
+            <h3>Encuentra lo que ocupa espacio sin necesidad</h3>
+            <ul>
+              <li><b>Basura:</b> temporales, cachés de navegadores, restos de Windows Update, papelera y volcados de errores.</li>
+              <li><b>Archivos grandes</b> que no abres hace meses.</li>
+              <li><b>Duplicados:</b> mismo contenido aunque tengan otro nombre.</li>
+              <li><b>Programas</b> instalados que no usas.</li>
+            </ul>
+            <p class="mod-out">Te da la ruta, el tamaño y cómo limpiarlo a mano.</p>
+            <button class="btn btn-xs" data-goto="disk">[ IR A DISCO ]</button>
+          </article>
+
+          <article class="mod" style="--i:1">
+            <div class="mod-k">02 · SEGURIDAD</div>
+            <h3>Revisa si hay algo raro corriendo o arrancando solo</h3>
+            <ul>
+              <li><b>Windows Defender:</b> estado, historial de amenazas y escaneo rápido.</li>
+              <li><b>Procesos:</b> señales típicas de malware (carpeta Temp, sin firma digital, nombres que imitan a Windows).</li>
+              <li><b>Arranque:</b> programas y tareas que se inician con Windows.</li>
+              <li><b>VirusTotal</b> (opcional): confirma los sospechosos con más de 70 antivirus.</li>
+            </ul>
+            <p class="mod-out">Marca lo que merece revisión. No confirma virus por sí solo.</p>
+            <button class="btn btn-xs" data-goto="security">[ IR A SEGURIDAD ]</button>
+          </article>
+
+          <article class="mod" style="--i:2">
+            <div class="mod-k">03 · RENDIMIENTO</div>
+            <h3>Mide cuánto te frenan los procesos en segundo plano</h3>
+            <ul>
+              <li><b>En vivo:</b> CPU, RAM, disco y red, y qué procesos consumen más.</li>
+              <li><b>Benchmark:</b> mide tu PC con todo activo y otra vez con los procesos que elijas en pausa.</li>
+            </ul>
+            <p class="mod-out">La diferencia es el % de rendimiento que te quitan. La pausa dura unos 25 s y se reanudan solos.</p>
+            <button class="btn btn-xs" data-goto="perf">[ IR A RENDIMIENTO ]</button>
+          </article>
+
+          <article class="mod" style="--i:3">
+            <div class="mod-k">04 · NÚCLEO</div>
+            <h3>Resume todo en un puntaje de salud</h3>
+            <ul>
+              <li><b>Puntaje de 0 a 100</b> que baja por basura acumulada, riesgos de seguridad, Defender apagado o mucha carga en segundo plano.</li>
+              <li>Cada descuento queda <b>explicado</b> debajo del puntaje.</li>
+              <li><b>Escaneo completo</b> en un clic y <b>reporte</b> exportable.</li>
+            </ul>
+            <p class="mod-out">Es esta pantalla. Empieza por aquí.</p>
+            <button class="btn btn-xs" id="about-scan">[ ESCANEAR TODO AHORA ]</button>
+          </article>
+        </div>
+
+        <div class="about-row">
+          <div>
+            <h4>CÓMO EMPEZAR</h4>
+            <ol class="steps">
+              <li>Pulsa <b>INICIAR ESCANEO COMPLETO</b>, arriba. Corre 6 módulos seguidos y puede tardar varios minutos. Los duplicados y el benchmark se lanzan aparte, porque tardan más.</li>
+              <li>Mira el puntaje y las observaciones que lo bajaron.</li>
+              <li>Entra a cada sección para ver el detalle y cómo solucionarlo.</li>
+              <li>Cuando quieras, exporta todo con <b>EXPORTAR REPORTE</b>.</li>
+            </ol>
+          </div>
+          <div>
+            <h4>LO QUE DEBES SABER</h4>
+            <ul class="facts">
+              <li><b>Solo lectura:</b> no borra ni modifica tus archivos. La única excepción es el benchmark, que pausa unos segundos los procesos que tú marques.</li>
+              <li><b>Todo es local:</b> lo único que sale a internet es el hash de un archivo, si consultas VirusTotal.</li>
+              <li><b>No es un antivirus:</b> la heurística marca señales para que las revises. Defender y VirusTotal son los que confirman.</li>
+              <li><b>Mejor como administrador:</b> sin esos permisos no se ven los procesos del sistema ni el último uso de los programas.</li>
+            </ul>
+            <div id="about-status"></div>
+          </div>
+        </div>
+      </details>
+
       <div class="grid stats">
         <div class="panel stat" id="stat-junk">
           <div class="stat-label">BASURA EN DISCO</div>

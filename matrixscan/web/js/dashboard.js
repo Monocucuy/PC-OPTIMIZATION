@@ -226,8 +226,33 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  // ------------------------------------------------------------ bloque "qué hace"
+  function renderAbout() {
+    const sys = MS.state.system, cfg = MS.state.config;
+    const notes = [];
+    if (sys && !sys.admin) {
+      notes.push('<div class="note">Estás sin permisos de administrador: el análisis de procesos y de programas saldrá incompleto. Cierra MatrixScan y abre <b>iniciar.bat</b> aceptando el permiso.</div>');
+    }
+    if (cfg && !cfg.has_vt_key) {
+      notes.push('<div class="note info">VirusTotal sin configurar (opcional). Pega tu API key gratis en <a href="#" data-goto="settings">CONFIG</a> para confirmar los sospechosos.</div>');
+    }
+    $('#about-status').innerHTML = notes.join('');
+  }
+
   // ------------------------------------------------------------ init
   MS.initDashboard = function () {
+    const about = $('#about');
+    try { if (localStorage.getItem('ms-about') === 'closed') about.open = false; } catch (_) { /* sin storage */ }
+    about.addEventListener('toggle', () => {
+      try { localStorage.setItem('ms-about', about.open ? 'open' : 'closed'); } catch (_) { /* sin storage */ }
+    });
+    MS.on('system', renderAbout);
+    MS.on('config', renderAbout);
+    $('#about-scan').addEventListener('click', () => {
+      $('#main').scrollTop = 0;          // el progreso del escaneo aparece arriba, en el anillo de salud
+      $('#btn-fullscan').click();
+    });
+
     MS.mission = new MS.Terminal($('#mission-log'), 300);
     MS.on('log', ({ kind, line }) => MS.mission.write(line, MS.jobLabel(kind)));
     MS.on('results', () => { renderStats(); renderHealth(); });
