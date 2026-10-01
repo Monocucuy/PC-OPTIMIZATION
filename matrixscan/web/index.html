@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="ms-token" content="{{TOKEN}}">
+<title>MatrixScan</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='5' y='24' font-family='monospace' font-size='22' fill='%2300ff41'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/matrix.css">
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+<div class="crt" aria-hidden="true"></div>
+
+<div id="boot" class="boot" role="presentation">
+  <pre id="boot-text"></pre>
+  <div class="boot-skip">[ clic o tecla para continuar ]</div>
+</div>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo glitch" data-text="MATRIX//SCAN">MATRIX//SCAN</span>
+      <span class="ver" id="ver">v1.0</span>
+    </div>
+    <div class="top-meta" id="top-meta"><span class="muted">conectando…</span></div>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <nav class="nav" id="nav" aria-label="Secciones">
+    <button data-view="dashboard" class="active"><span class="k">01</span><span class="t">NÚCLEO</span></button>
+    <button data-view="disk"><span class="k">02</span><span class="t">DISCO</span></button>
+    <button data-view="security"><span class="k">03</span><span class="t">SEGURIDAD</span></button>
+    <button data-view="perf"><span class="k">04</span><span class="t">RENDIMIENTO</span></button>
+    <button data-view="settings"><span class="k">05</span><span class="t">CONFIG</span></button>
+    <div class="nav-live">
+      <div class="nl-row"><span>CPU</span><b id="nl-cpu">--</b></div>
+      <div class="nl-bar"><i id="nl-cpu-bar"></i></div>
+      <div class="nl-row"><span>RAM</span><b id="nl-ram">--</b></div>
+      <div class="nl-bar"><i id="nl-ram-bar"></i></div>
+      <div class="nl-row"><span>2º PLANO</span><b id="nl-bg">--</b></div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <!-- ============================== NÚCLEO ============================== -->
+    <section class="view active" id="view-dashboard" data-title="NÚCLEO">
+      <div class="panel hero">
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+            <circle class="ring-ticks" cx="110" cy="110" r="102"></circle>
+            <circle class="ring-bg" cx="110" cy="110" r="88"></circle>
+            <circle class="ring-fg" id="health-ring" cx="110" cy="110" r="88"></circle>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-value" id="health-value">--</div>
+            <div class="ring-label" id="health-label">SIN DATOS</div>
+          </div>
+        </div>
+        <div class="hero-body">
+          <h1 class="scramble">DIAGNÓSTICO DEL SISTEMA</h1>
+          <p class="muted">Una pasada por disco, procesos, arranque y Windows Defender. Es <b>solo reporte</b>: no se borra ni se modifica nada; te digo qué hay, cuánto pesa y cómo limpiarlo tú.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="btn-fullscan">[ INICIAR ESCANEO COMPLETO ]</button>
+            <button class="btn" id="btn-export">[ EXPORTAR REPORTE ]</button>
+          </div>
+          <div class="jobbox" id="full-box" hidden></div>
+          <ul class="deductions" id="health-breakdown"></ul>
+        </div>
+      </div>
+
+      <div class="grid stats">
+        <div class="panel stat" id="stat-junk">
+          <div class="stat-label">BASURA EN DISCO</div>
+          <div class="stat-value">--</div>
+          <div class="stat-sub">sin escanear</div>
+        </div>
+        <div class="panel stat" id="stat-threats">
+          <div class="stat-label">RIESGOS DETECTADOS</div>
+          <div class="stat-value">--</div>
+          <div class="stat-sub">sin escanear</div>
+        </div>
+        <div class="panel stat" id="stat-bg">
+          <div class="stat-label">CARGA EN 2º PLANO</div>
+          <div class="stat-value">--</div>
+          <div class="stat-sub">midiendo…</div>
+        </div>
+        <div class="panel stat" id="stat-bench">
+          <div class="stat-label">RENDIMIENTO PERDIDO</div>
+          <div class="stat-value">--</div>
+          <div class="stat-sub">ejecuta el benchmark</div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="panel">
+          <h2>// TELEMETRÍA EN VIVO</h2>
+          <div class="chart-label"><span>CPU</span><b id="dash-cpu-v">--</b></div>
+          <canvas class="chart" id="dash-cpu"></canvas>
+          <div class="chart-label"><span>RAM</span><b id="dash-ram-v">--</b></div>
+          <canvas class="chart" id="dash-ram"></canvas>
+        </div>
+        <div class="panel">
+          <h2>// REGISTRO DE MISIÓN</h2>
+          <div class="terminal tall" id="mission-log"></div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="panel">
+          <h2>// UNIDADES</h2>
+          <div class="disks" id="dash-disks"></div>
+        </div>
+        <div class="panel">
+          <h2>// SISTEMA</h2>
+          <dl class="kv" id="dash-sys"></dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== DISCO ============================== -->
+    <section class="view" id="view-disk" data-title="DISCO">
+      <div class="view-head">
+        <h1 class="scramble">ANÁLISIS DE DISCO</h1>
+        <p class="muted">Solo reporte. Cada hallazgo trae la ruta y cómo limpiarlo a mano.</p>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="active" data-tab="junk">BASURA</button>
+        <button data-tab="large">GRANDES SIN USO</button>
+        <button data-tab="duplicates">DUPLICADOS</button>
+        <button data-tab="programs">PROGRAMAS</button>
+      </div>
+
+      <div class="tabpane active" data-pane="junk">
+        <div class="pane-bar">
+          <button class="btn btn-primary" data-run="junk">[ ESCANEAR BASURA ]</button>
+          <span class="muted">Temporales, cachés de navegadores, Windows Update, volcados, papelera y más.</span>
+        </div>
+        <div class="jobbox" data-box="junk" hidden></div>
+        <div id="junk-results" class="results"></div>
+      </div>
+
+      <div class="tabpane" data-pane="large">
+        <div class="pane-bar">
+          <button class="btn btn-primary" data-run="large">[ BUSCAR ARCHIVOS GRANDES ]</button>
+          <span class="muted" id="large-criteria"></span>
+        </div>
+        <div class="jobbox" data-box="large" hidden></div>
+        <div id="large-results" class="results"></div>
+      </div>
+
+      <div class="tabpane" data-pane="duplicates">
+        <div class="pane-bar">
+          <button class="btn btn-primary" data-run="duplicates">[ BUSCAR DUPLICADOS ]</button>
+          <span class="muted">Compara el contenido real (hash), no el nombre. En discos grandes tarda varios minutos.</span>
+        </div>
+        <div class="jobbox" data-box="duplicates" hidden></div>
+        <div id="duplicates-results" class="results"></div>
+      </div>
+
+      <div class="tabpane" data-pane="programs">
+        <div class="pane-bar">
+          <button class="btn btn-primary" data-run="programs">[ ANALIZAR PROGRAMAS ]</button>
+          <span class="muted">Tamaño y último uso según Prefetch y el registro de Windows.</span>
+        </div>
+        <div class="jobbox" data-box="programs" hidden></div>
+        <div id="programs-results" class="results"></div>
+      </div>
+    </section>
+
+    <!-- ============================== SEGURIDAD ============================== -->
+    <section class="view" id="view-security" data-title="SEGURIDAD">
+      <div class="view-head">
+        <h1 class="scramble">ANÁLISIS DE SEGURIDAD</h1>
+        <p class="muted">Defender busca virus por firmas; la heurística busca comportamientos raros; VirusTotal confirma con más de 70 antivirus.</p>
+      </div>
+      <div class="vt-banner" id="vt-banner"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>// WINDOWS DEFENDER</h2>
+          <div class="actions">
+            <button class="btn" data-run="defender_status">[ ACTUALIZAR ESTADO ]</button>
+            <button class="btn btn-primary" data-run="defender_scan">[ ESCANEO RÁPIDO ]</button>
+          </div>
+        </div>
+        <div class="jobbox" data-box="defender_status" hidden></div>
+        <div class="jobbox" data-box="defender_scan" hidden></div>
+        <div id="defender-results"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>// PROCESOS EN EJECUCIÓN</h2>
+          <div class="actions">
+            <label class="toggle"><input type="checkbox" id="proc-all"> <span>mostrar todos</span></label>
+            <button class="btn btn-primary" data-run="processes">[ ANALIZAR PROCESOS ]</button>
+          </div>
+        </div>
+        <div class="jobbox" data-box="processes" hidden></div>
+        <div id="processes-results"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>// ARRANQUE Y TAREAS PROGRAMADAS</h2>
+          <div class="actions">
+            <label class="toggle"><input type="checkbox" id="pers-sus"> <span>solo sospechosos</span></label>
+            <button class="btn btn-primary" data-run="persistence">[ ANALIZAR ARRANQUE ]</button>
+          </div>
+        </div>
+        <div class="jobbox" data-box="persistence" hidden></div>
+        <div id="persistence-results"></div>
+      </div>
+      <div class="jobbox floating" data-box="virustotal" hidden></div>
+    </section>
+
+    <!-- ============================== RENDIMIENTO ============================== -->
+    <section class="view" id="view-perf" data-title="RENDIMIENTO">
+      <div class="view-head">
+        <h1 class="scramble">RENDIMIENTO</h1>
+        <p class="muted">Lo que consumen ahora mismo los procesos en segundo plano, y un benchmark que mide cuánto rendimiento te quitan.</p>
+      </div>
+
+      <div class="grid stats">
+        <div class="panel stat" id="pf-bg-cpu"><div class="stat-label">CPU EN 2º PLANO</div><div class="stat-value">--</div><div class="stat-sub">promedio 60 s</div></div>
+        <div class="panel stat" id="pf-bg-ram"><div class="stat-label">RAM EN 2º PLANO</div><div class="stat-value">--</div><div class="stat-sub">--</div></div>
+        <div class="panel stat" id="pf-disk"><div class="stat-label">DISCO</div><div class="stat-value">--</div><div class="stat-sub">lectura + escritura</div></div>
+        <div class="panel stat" id="pf-net"><div class="stat-label">RED</div><div class="stat-value">--</div><div class="stat-sub">bajada + subida</div></div>
+      </div>
+
+      <div class="grid two">
+        <div class="panel">
+          <div class="chart-label"><span>CPU TOTAL</span><b id="pf-cpu-v">--</b></div>
+          <canvas class="chart" id="pf-cpu"></canvas>
+          <div class="cores" id="pf-cores"></div>
+        </div>
+        <div class="panel">
+          <div class="chart-label"><span>MEMORIA RAM</span><b id="pf-ram-v">--</b></div>
+          <canvas class="chart" id="pf-ram"></canvas>
+          <div class="chart-label"><span>DISCO E/S</span><b id="pf-disk-v">--</b></div>
+          <canvas class="chart small" id="pf-diskc"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>// PROCESOS QUE MÁS CONSUMEN</h2>
+          <div class="actions"><label class="toggle"><input type="checkbox" id="pf-only-bg" checked> <span>solo 2º plano</span></label></div>
+        </div>
+        <div id="pf-procs"></div>
+      </div>
+
+      <div class="panel bench">
+        <div class="panel-head">
+          <h2>// BENCHMARK: ¿CUÁNTO TE QUITAN?</h2>
+          <div class="actions">
+            <button class="btn" id="bench-refresh">[ RECARGAR LISTA ]</button>
+            <button class="btn btn-primary" id="bench-run">[ EJECUTAR BENCHMARK ]</button>
+            <button class="btn btn-danger" id="bench-resume" hidden>[ REANUDAR TODO YA ]</button>
+          </div>
+        </div>
+        <p class="muted small">Mide CPU, RAM y disco dos veces: con todo activo y con los procesos marcados <b>en pausa</b> (congelados ~25 s). La diferencia es el rendimiento que te quitan. Al terminar se reanudan solos, y si algo falla, un temporizador de seguridad los reanuda a los 120 s.</p>
+        <div id="bench-candidates" class="candidates"></div>
+        <div class="jobbox" data-box="benchmark" hidden></div>
+        <div id="bench-results"></div>
+      </div>
+    </section>
+
+    <!-- ============================== CONFIG ============================== -->
+    <section class="view" id="view-settings" data-title="CONFIG">
+      <div class="view-head">
+        <h1 class="scramble">CONFIGURACIÓN</h1>
+        <p class="muted">Se guarda en %APPDATA%\MatrixScan\config.json</p>
+      </div>
+      <form class="panel form" id="settings-form" autocomplete="off">
+        <h2>// VIRUSTOTAL</h2>
+        <div class="field">
+          <label for="cfg-vt">API key <span class="muted" id="cfg-vt-hint"></span></label>
+          <div class="row">
+            <input type="password" id="cfg-vt" placeholder="pega aquí tu API key (gratis)" spellcheck="false">
+            <button type="button" class="btn btn-xs" id="cfg-vt-clear">[ BORRAR ]</button>
+          </div>
+          <p class="muted small">Créala gratis en <a href="https://www.virustotal.com/gui/join-us" target="_blank" rel="noopener noreferrer">virustotal.com</a> → tu perfil → <b>API key</b>. Límite gratuito: 4 consultas/min y 500/día. Solo se envía el hash SHA-256, nunca tus archivos.</p>
+        </div>
+
+        <h2>// ESCANEO DE DISCO</h2>
+        <div class="field">
+          <label for="cfg-roots">Carpetas o unidades a revisar (una por línea)</label>
+          <textarea id="cfg-roots" rows="3" spellcheck="false"></textarea>
+          <div class="chips" id="cfg-drives"></div>
+        </div>
+        <div class="field">
+          <label for="cfg-exclude">Excluir rutas (una por línea)</label>
+          <textarea id="cfg-exclude" rows="2" spellcheck="false" placeholder="D:\SteamLibrary"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="cfg-large">Archivo grande desde (MB)</label><input type="number" id="cfg-large" min="1"></div>
+          <div class="field"><label for="cfg-days">Sin usar hace más de (días)</label><input type="number" id="cfg-days" min="1"></div>
+          <div class="field"><label for="cfg-dup">Duplicados desde (MB)</label><input type="number" id="cfg-dup" min="0" step="0.5"></div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-appdata"> <span>Ignorar AppData al buscar duplicados (recomendado: ahí hay cachés repetidas a propósito)</span></label>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">[ GUARDAR ]</button></div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <span id="sb-link"><i class="dot"></i> ENLACE LOCAL</span>
+    <span id="sb-jobs" class="muted"></span>
+    <span class="muted">SOLO LECTURA · NADA SE BORRA</span>
+  </footer>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script src="/static/js/rain.js"></script>
+<script src="/static/js/charts.js"></script>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/disk.js"></script>
+<script src="/static/js/security.js"></script>
+<script src="/static/js/perf.js"></script>
+<script src="/static/js/settings.js"></script>
+<script src="/static/js/main.js"></script>
+</body>
+</html>
