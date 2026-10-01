@@ -98,3 +98,64 @@ def test_virustotal_report_parsing():
     assert r["verdict"] == "malicioso" and r["malicious"] == 41 and r["engines"] == 72
     clean = parse_report({"data": {"attributes": {"last_analysis_stats": {"malicious": 0, "undetected": 70}}}})
     assert clean["verdict"] == "limpio"
+
+
+# ---------------------------------------------------------------- regresiones de la primera ejecución en Windows
+
+def test_signature_script_never_uses_get_content():
+    # Get-Content hace que ConvertTo-Json (PS 5.1) serialice cada ruta como objeto, no como texto
+    from matrixscan.security import signatures
+    assert "Get-Content" not in signatures._SCRIPT
+    assert "[string]$line" in signatures._SCRIPT
+
+
+def test_signatures_accept_paths_serialized_as_objects(tmp_path, monkeypatch):
+    import os
+    from matrixscan.security import signatures
+    exe = tmp_path / "app.exe"
+    exe.write_bytes(b"MZ")
+    rows = [
+        {"p": {"value": str(exe), "PSPath": "Microsoft.PowerShell.Core\\FileSystem::" + str(exe), "ReadCount": 1},
+         "s": "NotSigned", "c": ""},
+        {"p": str(exe), "s": "NotSigned", "c": ""},
+        {"p": None, "s": "NotSigned", "c": ""},
+        None,
+    ]
+    monkeypatch.setattr(signatures, "IS_WINDOWS", True)
+    monkeypatch.setattr(signatures, "powershell_json", lambda *a, **k: rows)
+    signatures._cache.clear()
+    result = signatures.check([str(exe)])
+    assert result == {os.path.normcase(str(exe)): {"status": "NotSigned", "signer": ""}}
+
+
+def test_wmi_fallback_fills_missing_paths():
+    from types import SimpleNamespace
+    from matrixscan.security.processes import merge_cim
+    procs = [
+        SimpleNamespace(pid=10, info={"exe": None, "cmdline": None, "ppid": None}),
+        SimpleNamespace(pid=11, info={"exe": r"C:\keep.exe", "cmdline": ["keep"], "ppid": 1}),
+        SimpleNamespace(pid=12, info={"exe": None, "cmdline": None, "ppid": None}),
+    ]
+    cim = {
+        10: {"exe": r"C:\Windows\System32\svchost.exe", "cmd": "svchost.exe -k netsvcs", "ppid": 4},
+        11: {"exe": r"C:\other.exe", "cmd": "other", "ppid": 9},
+    }
+    assert merge_cim(procs, cim) == 1
+    assert procs[0].info == {"exe": r"C:\Windows\System32\svchost.exe", "cmdline": ["svchost.exe -k netsvcs"], "ppid": 4}
+    assert procs[1].info["exe"] == r"C:\keep.exe"      # lo que psutil sí obtuvo no se pisa
+    assert procs[2].info["exe"] is None                # sin datos en WMI: queda igual
+
+
+def test_diagnose_missing_reports_real_cause():
+    from matrixscan.security.processes import diagnose_missing
+
+    class Denied:
+        def exe(self):
+            raise PermissionError("acceso denegado")
+
+    class Fine:
+        def exe(self):
+            return "x"
+
+    text = diagnose_missing([Denied(), Denied(), Fine()])
+    assert "PermissionError×2" in text and "ok al reintentar×1" in text and "acceso denegado" in text

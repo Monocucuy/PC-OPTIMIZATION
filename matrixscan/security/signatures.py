@@ -11,17 +11,28 @@ from ..util import IS_WINDOWS, as_list, powershell_json, ps_quote
 _cache: dict[tuple[str, float, int], dict] = {}
 _lock = threading.Lock()
 
+# OJO: Get-Content añade propiedades ocultas (PSPath, ReadCount...) a cada línea y, en Windows
+# PowerShell 5.1, ConvertTo-Json las serializa como objetos {"value": ..., "PSPath": ...}.
+# Por eso se lee con .NET y se fuerza [string].
 _SCRIPT = r"""
 $ErrorActionPreference = 'SilentlyContinue'
-$out = foreach ($p in (Get-Content -LiteralPath {listfile} -Encoding UTF8)) {
-  if (-not $p) { continue }
-  $s = Get-AuthenticodeSignature -LiteralPath $p
+$out = foreach ($line in [System.IO.File]::ReadAllLines({listfile})) {
+  if (-not $line) { continue }
+  $path = [string]$line
+  $s = Get-AuthenticodeSignature -LiteralPath $path
   $subj = ''
-  if ($s -and $s.SignerCertificate) { $subj = $s.SignerCertificate.Subject }
-  [pscustomobject]@{ p = $p; s = $(if ($s) { [string]$s.Status } else { 'UnknownError' }); c = $subj }
+  if ($s -and $s.SignerCertificate) { $subj = [string]$s.SignerCertificate.Subject }
+  [pscustomobject]@{ p = $path; s = $(if ($s) { [string]$s.Status } else { 'UnknownError' }); c = $subj }
 }
 ConvertTo-Json -InputObject @($out) -Compress
 """
+
+
+def _as_path(value) -> str | None:
+    """Tolera que PowerShell entregue la ruta como objeto {'value': ...} en vez de texto."""
+    if isinstance(value, dict):
+        value = value.get("value") or value.get("PSPath")
+    return value if isinstance(value, str) and value else None
 
 
 def signer_name(subject: str) -> str:
@@ -70,10 +81,11 @@ def check(paths: list[str]) -> dict[str, dict]:
             except OSError:
                 pass
         for row in as_list(data):
-            if not isinstance(row, dict) or not row.get("p"):
+            path = _as_path(row.get("p")) if isinstance(row, dict) else None
+            if not path:
                 continue
             info = {"status": row.get("s") or "UnknownError", "signer": signer_name(row.get("c") or "")}
-            k = _key(row["p"])
+            k = _key(path)
             if k:
                 with _lock:
                     _cache[k] = info

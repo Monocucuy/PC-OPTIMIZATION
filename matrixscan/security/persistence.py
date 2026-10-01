@@ -180,7 +180,11 @@ def scan(job: Job) -> dict:
     paths = [e["exe"] for e in entries if e["exe"]] + [e["target"] for e in entries if e["target"]]
     job.log(f"> Verificando firmas de {len(set(paths))} ejecutables...")
     job.set_progress(0.55, "Verificando firmas digitales")
-    sigs = signatures.check([p for p in paths if os.path.isfile(p)])
+    try:
+        sigs = signatures.check([p for p in paths if os.path.isfile(p)])
+    except Exception as exc:  # noqa: BLE001 - degradar en vez de abortar
+        job.log(f"> [!!] No se pudieron verificar las firmas ({type(exc).__name__}: {exc}). Se continúa sin ellas.")
+        sigs = {}
     windir = os.environ.get("SystemRoot", r"C:\Windows")
 
     results = []

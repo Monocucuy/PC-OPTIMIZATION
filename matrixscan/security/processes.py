@@ -7,7 +7,8 @@ import os
 import psutil
 
 from ..jobs import Job
-from ..util import IS_WINDOWS
+from ..util import IS_WINDOWS, as_list, powershell_json
+from ..winapi import is_admin
 from . import signatures
 from .heuristics import assess, level_for
 
@@ -46,6 +47,57 @@ def internet_pids() -> set[int]:
     return pids
 
 
+_CIM_SCRIPT = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$r = Get-CimInstance Win32_Process | ForEach-Object {
+  [pscustomobject]@{ i = [int]$_.ProcessId; e = [string]$_.ExecutablePath; c = [string]$_.CommandLine; p = [int]$_.ParentProcessId }
+}
+ConvertTo-Json -InputObject @($r) -Compress
+"""
+
+
+def cim_processes() -> dict[int, dict]:
+    """Ruta, línea de comandos y padre de cada proceso según WMI (plan B cuando psutil no los obtiene)."""
+    out: dict[int, dict] = {}
+    for row in as_list(powershell_json(_CIM_SCRIPT, timeout=90)):
+        if isinstance(row, dict) and isinstance(row.get("i"), int):
+            out[row["i"]] = {"exe": row.get("e") or "", "cmd": row.get("c") or "", "ppid": row.get("p") or 0}
+    return out
+
+
+def merge_cim(procs, cim: dict[int, dict]) -> int:
+    """Completa p.info con los datos de WMI donde psutil no obtuvo nada. Devuelve cuántas rutas recuperó."""
+    filled = 0
+    for p in procs:
+        row = cim.get(p.pid)
+        if not row:
+            continue
+        if row["exe"] and not p.info.get("exe"):
+            p.info["exe"] = row["exe"]
+            filled += 1
+        if row["cmd"] and not p.info.get("cmdline"):
+            p.info["cmdline"] = [row["cmd"]]
+        if row["ppid"] and not p.info.get("ppid"):
+            p.info["ppid"] = row["ppid"]
+    return filled
+
+
+def diagnose_missing(procs, sample: int = 12) -> str:
+    """Reintenta leer la ruta de unos cuantos procesos y resume el motivo real del fallo."""
+    counts: dict[str, int] = {}
+    first = ""
+    for p in procs[:sample]:
+        try:
+            p.exe()
+            key = "ok al reintentar"
+        except Exception as exc:  # noqa: BLE001 - es diagnóstico
+            key = type(exc).__name__
+            first = first or str(exc)[:90]
+        counts[key] = counts.get(key, 0) + 1
+    summary = ", ".join(f"{k}×{v}" for k, v in counts.items())
+    return summary + (f" · {first}" if first else "")
+
+
 def scan(job: Job) -> dict:
     skip = own_tree()
     job.log("> Enumerando procesos en ejecución...")
@@ -73,6 +125,15 @@ def scan(job: Job) -> dict:
         except psutil.Error:
             cpu[p.pid] = 0.0
 
+    if IS_WINDOWS:
+        missing = [p for p in procs if not p.info.get("exe")]
+        if len(missing) > 8:  # unos pocos (Idle, System, Registry) siempre faltan; muchos = psutil está ciego
+            job.log(f"  psutil no obtuvo la ruta de {len(missing)} de {len(procs)} procesos")
+            job.log(f"  causa: {diagnose_missing(missing)}")
+            job.set_progress(0.2, "Consultando rutas a WMI")
+            filled = merge_cim(missing, cim_processes())
+            job.log(f"  WMI recuperó la ruta de {filled} procesos")
+
     job.set_progress(0.25, "Revisando conexiones de red")
     net = internet_pids()
     names = {p.pid: (p.info.get("name") or "") for p in procs}
@@ -81,7 +142,11 @@ def scan(job: Job) -> dict:
     if IS_WINDOWS:
         job.log(f"> Verificando firma digital de {len(exes)} ejecutables...")
         job.set_progress(0.35, "Verificando firmas digitales")
-    sigs = signatures.check(exes)
+    try:
+        sigs = signatures.check(exes)
+    except Exception as exc:  # noqa: BLE001 - degradar en vez de abortar
+        job.log(f"> [!!] No se pudieron verificar las firmas ({type(exc).__name__}: {exc}). Se continúa sin ellas.")
+        sigs = {}
     job.check()
 
     windir = os.environ.get("SystemRoot", r"C:\Windows")
@@ -127,6 +192,7 @@ def scan(job: Job) -> dict:
     counts = {lvl: sum(1 for g in rows if g["level"] == lvl) for lvl in _LEVEL_ORDER}
     job.log(f"> Resultado: {counts['alto']} alto · {counts['medio']} medio · {counts['bajo']} bajo")
     if no_access:
-        job.log(f"> {no_access} procesos protegidos no se pudieron inspeccionar (normal sin admin).")
+        hint = "" if is_admin() else " Ejecuta como administrador para ver más."
+        job.log(f"> {no_access} procesos sin ruta de ejecutable (Idle, System, Registry y protegidos).{hint}")
     return {"processes": rows, "counts": counts, "total": len(procs), "no_access": no_access,
             "signatures_checked": IS_WINDOWS}
